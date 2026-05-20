@@ -46,6 +46,7 @@ public:
 private:
     void onDataRead(microbit_onDataRead_t *params) override;
     void onDisconnect(const microbit_ble_evt_t *p_ble_evt) override;
+    void configureMidiAdvertising(uint8_t serviceUuidType);
 
     uint8_t midiBuffer[5];
     bool firstRead;

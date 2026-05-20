@@ -38,23 +38,42 @@ static const uint8_t midi_adv_payload[] = {
     0x33, 0x4b, 0xe8, 0xed, 0x5a, 0x0e, 0xb8, 0x03,
 };
 
-static void configureMidiAdvertising()
+void BluetoothMIDIService::configureMidiAdvertising(uint8_t serviceUuidType)
 {
     uint8_t adv_handle = 0;
+    uint8_t enc_adv[BLE_GAP_ADV_SET_DATA_SIZE_MAX];
     uint8_t enc_scanrsp[BLE_GAP_ADV_SET_DATA_SIZE_MAX];
+    uint16_t adv_len = sizeof(enc_adv);
     uint16_t scan_len = sizeof(enc_scanrsp);
+
+    // Advertise the BLE MIDI 128-bit service UUID (required for macOS Audio MIDI Setup).
+    ble_advdata_t advdata;
+    memset(&advdata, 0, sizeof(advdata));
+    advdata.flags = BLE_GAP_ADV_FLAG_BR_EDR_NOT_SUPPORTED | BLE_GAP_ADV_FLAG_LE_GENERAL_DISC_MODE;
+    advdata.uuids_complete.uuid_cnt = 1;
+    ble_uuid_t midi_uuid;
+    midi_uuid.uuid = serviceUUID;
+    midi_uuid.type = serviceUuidType;
+    advdata.uuids_complete.p_uuids = &midi_uuid;
+
+    uint32_t err = ble_advdata_encode(&advdata, enc_adv, &adv_len);
+    if (err != NRF_SUCCESS) {
+        // Fall back to a pre-built payload if the softdevice rejects the encoded form.
+        adv_len = sizeof(midi_adv_payload);
+        memcpy(enc_adv, midi_adv_payload, adv_len);
+    }
 
     ble_advdata_t srdata;
     memset(&srdata, 0, sizeof(srdata));
     srdata.name_type = BLE_ADVDATA_FULL_NAME;
-    uint32_t err = ble_advdata_encode(&srdata, enc_scanrsp, &scan_len);
+    err = ble_advdata_encode(&srdata, enc_scanrsp, &scan_len);
     if (err != NRF_SUCCESS)
         scan_len = 0;
 
     ble_gap_adv_data_t gap_adv_data;
     memset(&gap_adv_data, 0, sizeof(gap_adv_data));
-    gap_adv_data.adv_data.p_data = (uint8_t *)midi_adv_payload;
-    gap_adv_data.adv_data.len = sizeof(midi_adv_payload);
+    gap_adv_data.adv_data.p_data = enc_adv;
+    gap_adv_data.adv_data.len = adv_len;
     if (scan_len > 0) {
         gap_adv_data.scan_rsp_data.p_data = enc_scanrsp;
         gap_adv_data.scan_rsp_data.len = scan_len;
@@ -67,18 +86,18 @@ static void configureMidiAdvertising()
     if (gap_adv_params.interval < BLE_GAP_ADV_INTERVAL_MIN)
         gap_adv_params.interval = BLE_GAP_ADV_INTERVAL_MIN;
     gap_adv_params.duration = 0;
-#if CONFIG_ENABLED(MICROBIT_BLE_WHITELIST)
-    gap_adv_params.filter_policy = BLE_GAP_ADV_FP_FILTER_BOTH;
-#else
+    // Always accept connections from any central. Whitelist filtering here caused
+    // "visible in scan, connection timeout" when no bonded peers exist.
     gap_adv_params.filter_policy = BLE_GAP_ADV_FP_ANY;
-#endif
     gap_adv_params.primary_phy = BLE_GAP_PHY_1MBPS;
 
     sd_ble_gap_adv_stop(adv_handle);
     MICROBIT_BLE_ECHK(sd_ble_gap_adv_set_configure(&adv_handle, &gap_adv_data, &gap_adv_params));
 
-    if (MicroBitBLEManager::manager)
+    if (MicroBitBLEManager::manager) {
+        MicroBitBLEManager::manager->setAdvertiseOnDisconnect(true);
         MicroBitBLEManager::manager->advertise();
+    }
 }
 
 // BLE MIDI service: 03B80E5A-EDE8-4B33-A751-6CE34EC4C700
@@ -101,13 +120,17 @@ BluetoothMIDIService::BluetoothMIDIService(BLEDevice &_ble)
 
     RegisterBaseUUID(service_base_uuid);
     CreateService(serviceUUID);
+    uint8_t serviceUuidType = bs_uuid_type;
 
     RegisterBaseUUID(char_base_uuid);
     CreateCharacteristic(mbbs_cIdxMIDI, charUUID[mbbs_cIdxMIDI],
         midiBuffer, 0, sizeof(midiBuffer),
         microbit_propREAD | microbit_propREADAUTH | microbit_propNOTIFY);
 
-    configureMidiAdvertising();
+    configureMidiAdvertising(serviceUuidType);
+
+    if (MicroBitBLEManager::manager)
+        MicroBitBLEManager::manager->servicesChanged();
 }
 
 void BluetoothMIDIService::onDataRead(microbit_onDataRead_t *params)

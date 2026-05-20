@@ -30,7 +30,7 @@ Any app that supports a BLE MIDI keyboard should work.
 3. In the **Central** section (bottom), wait for your @boardname@ to appear, select it, and click **Connect**.
 4. The device should then show as a MIDI input in other apps.
 
-You must flash **v2.0.15** or later on a **micro:bit v2**: older builds registered the MIDI GATT service but did not **advertise** the BLE MIDI service UUID, so macOS would never list the board. (micro:bit v1 + macOS is not supported for discovery.)
+You must flash **v2.0.16** or later on a **micro:bit v2**: older builds either did not **advertise** the BLE MIDI service UUID (macOS never listed the board) or advertised it with a whitelist filter (connection timeout). (micro:bit v1 + macOS is not supported for discovery.)
 
 ### Apple GarageBand
 
@@ -43,18 +43,21 @@ If the @boardname@ is marked as offline, click **Edit** and **Forget** the devic
 
 micro:bit v2 uses the **CODAL** runtime, not the v1 **DAL/mbed** stack. Older releases of this extension only implemented BLE MIDI with mbed APIs, so they **did not compile for v2**. MakeCode then disabled the package for v2 boards and showed **[error 929](https://support.microbit.org/support/solutions/articles/19000121371-makecode-extension-compatibility-v1-and-v2)** (“extension not compatible with this board”).
 
-From **v2.0.14** onward, the extension builds on both v1 and v2: v2 uses the same CODAL BLE service model as the built-in Bluetooth blocks. **v2.0.15** adds BLE advertisement of the MIDI service UUID (required for macOS discovery). If you still see error 929, remove and re-add the extension (or use this repo version) and download a fresh `.hex` after upgrading.
+From **v2.0.14** onward, the extension builds on both v1 and v2: v2 uses the same CODAL BLE service model as the built-in Bluetooth blocks. **v2.0.15+** advertises the MIDI service UUID; **v2.0.16** fixes connection timeouts and macOS discovery. If you still see error 929, remove and re-add the extension (or use this repo version) and download a fresh `.hex` after upgrading.
 
 ## Troubleshooting BLE scanners (Android / nRF Connect)
 
 ### The device does not show up when scanning
 
-By default, MakeCode enables **JustWorks pairing with a whitelist**. On micro:bit v2 that means the board **does not advertise at all** until it has been paired at least once (this is intentional for privacy). A generic BLE scanner will see nothing until you do one of the following:
+This extension’s firmware defaults to **open Bluetooth** (no whitelist) so MIDI centrals can find and connect to the board. You should still pick **“No Pairing Required”** in MakeCode **Project Settings** if you changed it earlier, then download a new `.hex`.
 
-1. **Pairing mode (first time):** Hold **A + B**, press **reset**, release reset (keep holding A + B until “PAIRING MODE” scrolls). Then connect from the scanner app or from Android Bluetooth settings and complete pairing (press **A** when prompted).
-2. **Project setting (easier for testing):** In MakeCode, open **Project Settings** (gear) → **Bluetooth** (or package settings) → choose **“No Pairing Required: Anyone can connect via Bluetooth.”** Download a new `.hex` and scan again. The board should appear as `BBC micro:bit [xxxxx]` (or your chosen name).
+If the board is missing from scans entirely, try **pairing mode** once: hold **A + B**, press **reset**, release reset (keep A + B until “PAIRING MODE” scrolls), then scan again.
 
 Bluetooth must be enabled in the firmware: adding this extension pulls in the `bluetooth` package, which turns the stack on. You do **not** need separate “start accelerometer” blocks for MIDI to work.
+
+### Scanner sees the micro:bit but connection times out
+
+That was a bug in **v2.0.15**: the board advertised the MIDI service but used a **whitelist connection filter** while no devices were bonded, so Android/macOS could see it but not connect. **v2.0.16** fixes this (always accepts connections for advertising) and encodes the correct service UUID type. Flash **v2.0.16+** and forget/remove old “micro:bit” entries on the phone/Mac before retrying.
 
 ### I see the micro:bit but not the MIDI service UUID
 
