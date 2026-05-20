@@ -112,10 +112,10 @@ BluetoothMIDIService::BluetoothMIDIService(BLEDevice &_ble)
     uint8_t serviceUuidType = bs_uuid_type;
 
     RegisterBaseUUID(char_base_uuid);
-    // BLE MIDI spec: read (empty), write, write-without-response, notify.
+    // BLE MIDI spec: read (empty), write-without-response, notify (see Nordic BLE-MIDI guide).
     CreateCharacteristic(mbbs_cIdxMIDI, charUUID[mbbs_cIdxMIDI],
         midiBuffer, 0, sizeof(midiBuffer),
-        microbit_propREAD | microbit_propWRITE | microbit_propWRITE_WITHOUT | microbit_propNOTIFY);
+        microbit_propREAD | microbit_propREADAUTH | microbit_propWRITE_WITHOUT | microbit_propNOTIFY);
 
     configureMidiAdvertising(serviceUuidType);
 
@@ -125,16 +125,41 @@ BluetoothMIDIService::BluetoothMIDIService(BLEDevice &_ble)
 
 void BluetoothMIDIService::onConnect(const microbit_ble_evt_t *p_ble_evt)
 {
+    (void)p_ble_evt;
     firstRead = true;
+}
 
-    // BLE MIDI spec: connection interval <= 15 ms.
-    ble_gap_conn_params_t params;
-    memset(&params, 0, sizeof(params));
-    params.min_conn_interval = 6;   // 7.5 ms
-    params.max_conn_interval = 12;  // 15 ms
-    params.slave_latency = 0;
-    params.conn_sup_timeout = 400;
-    sd_ble_gap_conn_param_update(p_ble_evt->evt.gap_evt.conn_handle, &params);
+void BluetoothMIDIService::sendEmptyMidiNotification()
+{
+    if (!getConnected())
+        return;
+
+    // v1 mbed path called gattServer().notify() before CCCD subscribe; match that here.
+    uint16_t len = 0;
+    ble_gatts_hvx_params_t hvx_params;
+    memset(&hvx_params, 0, sizeof(hvx_params));
+    hvx_params.handle = valueHandle(mbbs_cIdxMIDI);
+    hvx_params.type = BLE_GATT_HVX_NOTIFICATION;
+    hvx_params.offset = 0;
+    hvx_params.p_len = &len;
+    hvx_params.p_data = midiBuffer;
+    sd_ble_gatts_hvx(getConnectionHandle(), &hvx_params);
+}
+
+void BluetoothMIDIService::onDataRead(microbit_onDataRead_t *params)
+{
+    if (params->handle != valueHandle(mbbs_cIdxMIDI))
+        return;
+
+    if (firstRead) {
+        sendEmptyMidiNotification();
+        firstRead = false;
+    }
+
+    params->data = midiBuffer;
+    params->length = 0;
+    params->allow = true;
+    params->update = true;
 }
 
 void BluetoothMIDIService::onDataWritten(const microbit_ble_evt_write_t *params)
@@ -144,12 +169,9 @@ void BluetoothMIDIService::onDataWritten(const microbit_ble_evt_write_t *params)
     if (idx < 0)
         return;
 
-    if (type == microbit_charattrCCCD && params->len == 2) {
-        uint16_t cccd = uint16_decode(params->data);
-        if ((cccd & BLE_GATT_HVX_NOTIFICATION) && firstRead) {
-            notifyChrValue(mbbs_cIdxMIDI, midiBuffer, 0);
-            firstRead = false;
-        }
+    if (type == microbit_charattrCCCD && params->len == 2 && firstRead) {
+        sendEmptyMidiNotification();
+        firstRead = false;
     }
 }
 
@@ -231,7 +253,6 @@ BluetoothMIDIService::BluetoothMIDIService(BLEDevice &_ble): ble(_ble) {
 
     GattCharacteristic midiCharacteristic(midiCharacteristicUuid, midiBuffer, 0, sizeof(midiBuffer),
           GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_READ
-        | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_WRITE
         | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_WRITE_WITHOUT_RESPONSE
         | GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY
         );

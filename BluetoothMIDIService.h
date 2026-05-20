@@ -22,6 +22,9 @@
 #include "MicroBitConfig.h"
 #include "pxt.h"
 
+// Max BLE MIDI packet size at default ATT MTU (spec allows up to negotiated MTU).
+#define BLE_MIDI_CHAR_MAX_LEN 20
+
 //================================================================
 #if MICROBIT_CODAL
 //================================================================
@@ -45,11 +48,13 @@ public:
 
 private:
     void onConnect(const microbit_ble_evt_t *p_ble_evt) override;
+    void onDataRead(microbit_onDataRead_t *params) override;
     void onDataWritten(const microbit_ble_evt_write_t *params) override;
     void onDisconnect(const microbit_ble_evt_t *p_ble_evt) override;
     void configureMidiAdvertising(uint8_t serviceUuidType);
+    void sendEmptyMidiNotification();
 
-    uint8_t midiBuffer[5];
+    uint8_t midiBuffer[BLE_MIDI_CHAR_MAX_LEN];
     bool firstRead;
 
     typedef enum mbbs_cIdx
@@ -93,7 +98,7 @@ private:
     void onDataRead(const GattReadCallbackParams* params);
     void onDisconnection(const Gap::DisconnectionCallbackParams_t* params);
 
-    uint8_t midiBuffer[5];
+    uint8_t midiBuffer[BLE_MIDI_CHAR_MAX_LEN];
     bool firstRead;
 
     BLEDevice &ble;
