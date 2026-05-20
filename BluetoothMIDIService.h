@@ -19,40 +19,88 @@
 #ifndef __BLEMIDI_H__
 #define __BLEMIDI_H__
 
-#include "ble/BLE.h"
+#include "MicroBitConfig.h"
+#include "pxt.h"
 
-/** 
- * A class to communicate a BLE MIDI device
+//================================================================
+#if MICROBIT_CODAL
+//================================================================
+
+#include "MicroBitBLEManager.h"
+#include "MicroBitBLEService.h"
+
+/**
+ * A class to communicate with a BLE MIDI device (micro:bit v2 / CODAL).
  */
-class BluetoothMIDIService {
+class BluetoothMIDIService : public MicroBitBLEService
+{
 public:
-    /**
-     * Constructor
-     */
-    BluetoothMIDIService(BLEDevice *device);
+    BluetoothMIDIService(BLEDevice &_ble);
 
-    /**
-     * Check if a BLE MIDI device is connected
-     *
-     * @returns true if a midi device is connected
-     */
     bool connected();
 
     void sendMidiMessage(uint8_t data0);
     void sendMidiMessage(uint8_t data0, uint8_t data1);
     void sendMidiMessage(uint8_t data0, uint8_t data1, uint8_t data2);
 
-private:    
+private:
+    void onDataRead(microbit_onDataRead_t *params) override;
+    void onDisconnect(const microbit_ble_evt_t *p_ble_evt) override;
+
+    uint8_t midiBuffer[5];
+    bool firstRead;
+
+    typedef enum mbbs_cIdx
+    {
+        mbbs_cIdxMIDI,
+        mbbs_cIdxCOUNT
+    } mbbs_cIdx;
+
+    static const uint8_t service_base_uuid[16];
+    static const uint8_t char_base_uuid[16];
+    static const uint16_t serviceUUID;
+    static const uint16_t charUUID[mbbs_cIdxCOUNT];
+
+    MicroBitBLEChar chars[mbbs_cIdxCOUNT];
+
+public:
+    int characteristicCount() { return mbbs_cIdxCOUNT; }
+    MicroBitBLEChar *characteristicPtr(int idx) { return &chars[idx]; }
+};
+
+//================================================================
+#else // MICROBIT_CODAL
+//================================================================
+
+#include "ble/BLE.h"
+
+/**
+ * A class to communicate with a BLE MIDI device (micro:bit v1 / mbed BLE).
+ */
+class BluetoothMIDIService {
+public:
+    BluetoothMIDIService(BLEDevice &_ble);
+
+    bool connected();
+
+    void sendMidiMessage(uint8_t data0);
+    void sendMidiMessage(uint8_t data0, uint8_t data1);
+    void sendMidiMessage(uint8_t data0, uint8_t data1, uint8_t data2);
+
+private:
     void onDataRead(const GattReadCallbackParams* params);
     void onDisconnection(const Gap::DisconnectionCallbackParams_t* params);
 
-    uint16_t timestamp;
     uint8_t midiBuffer[5];
     bool firstRead;
 
     BLEDevice &ble;
-    GattAttribute::Handle_t midiCharacteristicHandle;    
+    GattAttribute::Handle_t midiCharacteristicHandle;
     Timer tick;
 };
+
+//================================================================
+#endif // MICROBIT_CODAL
+//================================================================
 
 #endif /* __BLEMIDI_H__ */

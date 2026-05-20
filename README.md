@@ -30,9 +30,15 @@ Any app that supports a MIDI keyboard or instrument should work.
 Go to settings (gearwheel), click **Advanced**, click **Bluetooth MIDI device** and connect to the @boardname@.
 If the @boardname@ is marked as offline, click **Edit** and **Forget** the device.
 
+## micro:bit v2
+
+micro:bit v2 uses the **CODAL** runtime, not the v1 **DAL/mbed** stack. Older releases of this extension only implemented BLE MIDI with mbed APIs, so they **did not compile for v2**. MakeCode then disabled the package for v2 boards and showed **[error 929](https://support.microbit.org/support/solutions/articles/19000121371-makecode-extension-compatibility-v1-and-v2)** (“extension not compatible with this board”).
+
+From **v2.0.14** onward, the extension builds on both v1 and v2: v2 uses the same CODAL BLE service model as the built-in Bluetooth blocks. If you still see error 929, remove and re-add the extension (or use this repo version) and download a fresh `.hex` after upgrading.
+
 ## Supported targets
 
-* for PXT/microbit
+* for PXT/microbit (micro:bit v1 and v2)
 * for PXT/calliope
 
 (The metadata above is needed for package search.)

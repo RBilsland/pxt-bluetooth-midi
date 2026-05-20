@@ -14,7 +14,7 @@ namespace bluetooth {
     BluetoothMIDIService* getMidi() 
     {
         if (NULL == pMidi)
-            pMidi = new BluetoothMIDIService(uBit.ble);
+            pMidi = new BluetoothMIDIService(*uBit.ble);
         return pMidi;
     }
 
