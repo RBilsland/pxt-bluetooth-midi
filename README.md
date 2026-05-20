@@ -2,7 +2,7 @@
 
 A [Bluetooth low energy MIDI](https://www.midi.org/specifications/item/bluetooth-le-midi) 
 support for the @boardname@.
-**iOS only currently**.
+**iOS and macOS** (via Audio MIDI Setup Bluetooth MIDI).
 
 ### ~hint
 ![](/static/bluetooth/Bluetooth_SIG.png)
@@ -20,8 +20,17 @@ Please refer to that project documentation for further details on using MIDI com
 
 ## Supported Platforms
 
-This package is currently only supported on iOS (iPad/iPhone). 
-Any app that supports a MIDI keyboard or instrument should work.
+This package supports **iOS** (iPad/iPhone) and **macOS** (Audio MIDI Setup → Bluetooth configuration, Central role).
+Any app that supports a BLE MIDI keyboard should work.
+
+### macOS Audio MIDI Setup
+
+1. Open **Audio MIDI Setup** → **Window** → **Show MIDI Studio**.
+2. Double-click the **Bluetooth** configuration icon.
+3. In the **Central** section (bottom), wait for your @boardname@ to appear, select it, and click **Connect**.
+4. The device should then show as a MIDI input in other apps.
+
+You must flash **v2.0.15** or later on a **micro:bit v2**: older builds registered the MIDI GATT service but did not **advertise** the BLE MIDI service UUID, so macOS would never list the board. (micro:bit v1 + macOS is not supported for discovery.)
 
 ### Apple GarageBand
 
@@ -34,7 +43,32 @@ If the @boardname@ is marked as offline, click **Edit** and **Forget** the devic
 
 micro:bit v2 uses the **CODAL** runtime, not the v1 **DAL/mbed** stack. Older releases of this extension only implemented BLE MIDI with mbed APIs, so they **did not compile for v2**. MakeCode then disabled the package for v2 boards and showed **[error 929](https://support.microbit.org/support/solutions/articles/19000121371-makecode-extension-compatibility-v1-and-v2)** (“extension not compatible with this board”).
 
-From **v2.0.14** onward, the extension builds on both v1 and v2: v2 uses the same CODAL BLE service model as the built-in Bluetooth blocks. If you still see error 929, remove and re-add the extension (or use this repo version) and download a fresh `.hex` after upgrading.
+From **v2.0.14** onward, the extension builds on both v1 and v2: v2 uses the same CODAL BLE service model as the built-in Bluetooth blocks. **v2.0.15** adds BLE advertisement of the MIDI service UUID (required for macOS discovery). If you still see error 929, remove and re-add the extension (or use this repo version) and download a fresh `.hex` after upgrading.
+
+## Troubleshooting BLE scanners (Android / nRF Connect)
+
+### The device does not show up when scanning
+
+By default, MakeCode enables **JustWorks pairing with a whitelist**. On micro:bit v2 that means the board **does not advertise at all** until it has been paired at least once (this is intentional for privacy). A generic BLE scanner will see nothing until you do one of the following:
+
+1. **Pairing mode (first time):** Hold **A + B**, press **reset**, release reset (keep holding A + B until “PAIRING MODE” scrolls). Then connect from the scanner app or from Android Bluetooth settings and complete pairing (press **A** when prompted).
+2. **Project setting (easier for testing):** In MakeCode, open **Project Settings** (gear) → **Bluetooth** (or package settings) → choose **“No Pairing Required: Anyone can connect via Bluetooth.”** Download a new `.hex` and scan again. The board should appear as `BBC micro:bit [xxxxx]` (or your chosen name).
+
+Bluetooth must be enabled in the firmware: adding this extension pulls in the `bluetooth` package, which turns the stack on. You do **not** need separate “start accelerometer” blocks for MIDI to work.
+
+### I see the micro:bit but not the MIDI service UUID
+
+That is normal. BLE **scan results** only show advertising data (name, sometimes a few UUIDs). Custom **GATT services are not listed while scanning**; they appear only **after you connect** as a GATT client:
+
+1. In **nRF Connect** (or similar), **connect** to the micro:bit (do not rely on scan-only view).
+2. Open **Services** / **Discover services** (use “refresh” if you connected before).
+3. Look for service **`03B80E5A-EDE8-4B33-A751-6CE34EC4C700`** (MIDI) and characteristic **`7772E5DB-3868-412A-A1A9-F2669D106BF3`**.
+
+If you connected earlier, **disconnect**, **forget** the device in Android Bluetooth settings, refresh services in the app, and reconnect so the phone does not use a cached GATT table from an old program.
+
+### GarageBand / iOS still cannot see MIDI
+
+iOS discovers BLE MIDI through the app (Settings → Advanced → Bluetooth MIDI), not a generic scanner. Pair or use **No Pairing Required**, flash the latest hex, and ensure the program runs (the extension starts the MIDI service automatically on boot).
 
 ## Supported targets
 

@@ -24,8 +24,62 @@
 //================================================================
 
 #include "pxt.h"
+#include "MicroBitBLEManager.h"
+#include "ble_advdata.h"
+#include "ble_gap.h"
 
 using namespace codal;
+
+// BLE MIDI spec: centrals (macOS Audio MIDI Setup, iOS) scan for this 128-bit UUID in advertisements.
+static const uint8_t midi_adv_payload[] = {
+    0x02, 0x01, 0x06,
+    0x11, 0x07,
+    0x00, 0xc7, 0xc4, 0x4e, 0xe3, 0x6c, 0x51, 0xa7,
+    0x33, 0x4b, 0xe8, 0xed, 0x5a, 0x0e, 0xb8, 0x03,
+};
+
+static void configureMidiAdvertising()
+{
+    uint8_t adv_handle = 0;
+    uint8_t enc_scanrsp[BLE_GAP_ADV_SET_DATA_SIZE_MAX];
+    uint16_t scan_len = sizeof(enc_scanrsp);
+
+    ble_advdata_t srdata;
+    memset(&srdata, 0, sizeof(srdata));
+    srdata.name_type = BLE_ADVDATA_FULL_NAME;
+    uint32_t err = ble_advdata_encode(&srdata, enc_scanrsp, &scan_len);
+    if (err != NRF_SUCCESS)
+        scan_len = 0;
+
+    ble_gap_adv_data_t gap_adv_data;
+    memset(&gap_adv_data, 0, sizeof(gap_adv_data));
+    gap_adv_data.adv_data.p_data = (uint8_t *)midi_adv_payload;
+    gap_adv_data.adv_data.len = sizeof(midi_adv_payload);
+    if (scan_len > 0) {
+        gap_adv_data.scan_rsp_data.p_data = enc_scanrsp;
+        gap_adv_data.scan_rsp_data.len = scan_len;
+    }
+
+    ble_gap_adv_params_t gap_adv_params;
+    memset(&gap_adv_params, 0, sizeof(gap_adv_params));
+    gap_adv_params.properties.type = BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED;
+    gap_adv_params.interval = (1000 * MICROBIT_BLE_ADVERTISING_INTERVAL) / 625;
+    if (gap_adv_params.interval < BLE_GAP_ADV_INTERVAL_MIN)
+        gap_adv_params.interval = BLE_GAP_ADV_INTERVAL_MIN;
+    gap_adv_params.duration = 0;
+#if CONFIG_ENABLED(MICROBIT_BLE_WHITELIST)
+    gap_adv_params.filter_policy = BLE_GAP_ADV_FP_FILTER_BOTH;
+#else
+    gap_adv_params.filter_policy = BLE_GAP_ADV_FP_ANY;
+#endif
+    gap_adv_params.primary_phy = BLE_GAP_PHY_1MBPS;
+
+    sd_ble_gap_adv_stop(adv_handle);
+    MICROBIT_BLE_ECHK(sd_ble_gap_adv_set_configure(&adv_handle, &gap_adv_data, &gap_adv_params));
+
+    if (MicroBitBLEManager::manager)
+        MicroBitBLEManager::manager->advertise();
+}
 
 // BLE MIDI service: 03B80E5A-EDE8-4B33-A751-6CE34EC4C700
 const uint8_t BluetoothMIDIService::service_base_uuid[16] =
@@ -52,6 +106,8 @@ BluetoothMIDIService::BluetoothMIDIService(BLEDevice &_ble)
     CreateCharacteristic(mbbs_cIdxMIDI, charUUID[mbbs_cIdxMIDI],
         midiBuffer, 0, sizeof(midiBuffer),
         microbit_propREAD | microbit_propREADAUTH | microbit_propNOTIFY);
+
+    configureMidiAdvertising();
 }
 
 void BluetoothMIDIService::onDataRead(microbit_onDataRead_t *params)
