@@ -1,6 +1,6 @@
 {
     "name": "bluetooth-midi",
-    "version": "2.0.16",
+    "version": "2.0.17",
     "description": "A Bluetooth MIDI service",
     "license": "MIT",
     "dependencies": {
@@ -27,8 +27,9 @@
             "microbit-dal": {
                 "bluetooth": {
                     "enabled": 1,
-                    "open": 1,
-                    "whitelist": 0
+                    "open": 0,
+                    "whitelist": 0,
+                    "security_level": "SECURITY_MODE_ENCRYPTION_NO_MITM"
                 },
                 "gatt_table_size": "0x700"
             }

@@ -40,39 +40,27 @@ static const uint8_t midi_adv_payload[] = {
 
 void BluetoothMIDIService::configureMidiAdvertising(uint8_t serviceUuidType)
 {
+    (void)serviceUuidType;
+
     uint8_t adv_handle = 0;
-    uint8_t enc_adv[BLE_GAP_ADV_SET_DATA_SIZE_MAX];
     uint8_t enc_scanrsp[BLE_GAP_ADV_SET_DATA_SIZE_MAX];
-    uint16_t adv_len = sizeof(enc_adv);
     uint16_t scan_len = sizeof(enc_scanrsp);
 
-    // Advertise the BLE MIDI 128-bit service UUID (required for macOS Audio MIDI Setup).
-    ble_advdata_t advdata;
-    memset(&advdata, 0, sizeof(advdata));
-    advdata.flags = BLE_GAP_ADV_FLAG_BR_EDR_NOT_SUPPORTED | BLE_GAP_ADV_FLAG_LE_GENERAL_DISC_MODE;
-    advdata.uuids_complete.uuid_cnt = 1;
-    ble_uuid_t midi_uuid;
-    midi_uuid.uuid = serviceUUID;
-    midi_uuid.type = serviceUuidType;
-    advdata.uuids_complete.p_uuids = &midi_uuid;
-
-    uint32_t err = ble_advdata_encode(&advdata, enc_adv, &adv_len);
-    if (err != NRF_SUCCESS) {
-        // Fall back to a pre-built payload if the softdevice rejects the encoded form.
-        adv_len = sizeof(midi_adv_payload);
-        memcpy(enc_adv, midi_adv_payload, adv_len);
-    }
+    // macOS Audio MIDI Setup scans for AD type 0x07 (complete 128-bit service UUID).
+    // ble_advdata_encode() with uuids_complete only emits a 16-bit alias, which iOS/macOS
+    // BLE MIDI centrals do not treat as a MIDI peripheral in their picker.
+    const uint16_t adv_len = sizeof(midi_adv_payload);
 
     ble_advdata_t srdata;
     memset(&srdata, 0, sizeof(srdata));
     srdata.name_type = BLE_ADVDATA_FULL_NAME;
-    err = ble_advdata_encode(&srdata, enc_scanrsp, &scan_len);
+    uint32_t err = ble_advdata_encode(&srdata, enc_scanrsp, &scan_len);
     if (err != NRF_SUCCESS)
         scan_len = 0;
 
     ble_gap_adv_data_t gap_adv_data;
     memset(&gap_adv_data, 0, sizeof(gap_adv_data));
-    gap_adv_data.adv_data.p_data = enc_adv;
+    gap_adv_data.adv_data.p_data = (uint8_t *)midi_adv_payload;
     gap_adv_data.adv_data.len = adv_len;
     if (scan_len > 0) {
         gap_adv_data.scan_rsp_data.p_data = enc_scanrsp;
