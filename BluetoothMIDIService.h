@@ -44,7 +44,8 @@ public:
     void sendMidiMessage(uint8_t data0, uint8_t data1, uint8_t data2);
 
 private:
-    void onDataRead(microbit_onDataRead_t *params) override;
+    void onConnect(const microbit_ble_evt_t *p_ble_evt) override;
+    void onDataWritten(const microbit_ble_evt_write_t *params) override;
     void onDisconnect(const microbit_ble_evt_t *p_ble_evt) override;
     void configureMidiAdvertising(uint8_t serviceUuidType);
 

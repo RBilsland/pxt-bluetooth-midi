@@ -32,7 +32,7 @@ Any app that supports a BLE MIDI keyboard should work.
 
 **Important for Mac:** use **Just Works pairing** (MakeCode default), **not** “No Pairing Required”. macOS Core MIDI expects an encrypted BLE link; open/unencrypted mode can connect in nRF Connect but still not appear in the MIDI Studio Bluetooth list.
 
-You must flash **v2.0.17** or later on a **micro:bit v2**: v2.0.17 always advertises the **full 128-bit** MIDI UUID (`0x07` AD type). Older builds sometimes advertised only a 16-bit alias (visible in nRF Connect **after** connect, but invisible to macOS MIDI scan). (micro:bit v1 + macOS is not supported for discovery.)
+You must flash **v2.0.18** or later on a **micro:bit v2**: v2.0.17 always advertises the **full 128-bit** MIDI UUID (`0x07` AD type). Older builds sometimes advertised only a 16-bit alias (visible in nRF Connect **after** connect, but invisible to macOS MIDI scan). (micro:bit v1 + macOS is not supported for discovery.)
 
 ### Apple GarageBand
 
@@ -45,7 +45,7 @@ If the @boardname@ is marked as offline, click **Edit** and **Forget** the devic
 
 micro:bit v2 uses the **CODAL** runtime, not the v1 **DAL/mbed** stack. Older releases of this extension only implemented BLE MIDI with mbed APIs, so they **did not compile for v2**. MakeCode then disabled the package for v2 boards and showed **[error 929](https://support.microbit.org/support/solutions/articles/19000121371-makecode-extension-compatibility-v1-and-v2)** (“extension not compatible with this board”).
 
-From **v2.0.14** onward, the extension builds on both v1 and v2: v2 uses the same CODAL BLE service model as the built-in Bluetooth blocks. **v2.0.15+** advertises the MIDI service UUID; **v2.0.16** fixes connection timeouts; **v2.0.17** fixes macOS MIDI scan (128-bit UUID in advertisements + Just Works security). If you still see error 929, remove and re-add the extension (or use this repo version) and download a fresh `.hex` after upgrading.
+From **v2.0.14** onward, the extension builds on both v1 and v2: v2 uses the same CODAL BLE service model as the built-in Bluetooth blocks. **v2.0.15+** advertises the MIDI service UUID; **v2.0.16** fixes connection timeouts; **v2.0.17** fixes macOS MIDI scan (128-bit UUID in advertisements + Just Works security); **v2.0.18** adds the full BLE MIDI characteristic (read/write/notify) and faster connection interval for macOS connect. If you still see error 929, remove and re-add the extension (or use this repo version) and download a fresh `.hex` after upgrading.
 
 ## Troubleshooting BLE scanners (Android / nRF Connect)
 
