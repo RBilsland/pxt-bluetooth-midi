@@ -30,7 +30,7 @@ Any app that supports a BLE MIDI keyboard should work.
 3. In the **Central** section (bottom), wait for your @boardname@ to appear, select it, and click **Connect**.
 4. The device should then show as a MIDI input in other apps.
 
-**Important for Mac:** v2.0.21 defaults to **No Pairing Required** (open link). If connect still fails, try the extension’s **Just Works pairing** user config in MakeCode Project Settings.
+**Important for Mac:** set pairing in **MakeCode Project Settings** (gear icon) → **Bluetooth** → **Just Works** (not “No Pairing Required”). Do **not** use a separate bluetooth-midi “user config” — it conflicts with the Bluetooth extension (see troubleshooting below).
 
 You must flash **v2.0.21** or later on a **micro:bit v2**: v2.0.17 always advertises the **full 128-bit** MIDI UUID (`0x07` AD type). Older builds sometimes advertised only a 16-bit alias (visible in nRF Connect **after** connect, but invisible to macOS MIDI scan). (micro:bit v1 + macOS is not supported for discovery.)
 
@@ -51,19 +51,23 @@ From **v2.0.14** onward, the extension builds on both v1 and v2: v2 uses the sam
 
 ### The device does not show up when scanning
 
-This extension’s firmware defaults to **No Pairing Required (open), no whitelist**. For Mac, if connect still fails after v2.0.20, try the **Just Works pairing** user config in MakeCode Project Settings, then download a new `.hex`.
+Pairing mode (**No Pairing Required** vs **Just Works**) is chosen in **Project Settings → Bluetooth**, not in this extension. For macOS MIDI Studio, use **Just Works**, download a new `.hex`, and flash.
 
-If the board is missing from scans entirely, try **pairing mode** once: hold **A + B**, press **reset**, release reset (keep A + B until “PAIRING MODE” scrolls), then scan again.
+If the board is missing from scans entirely, ensure the program is **running normally** (not the “PAIRING MODE” screen). **Pairing mode does not advertise the MIDI UUID**, so macOS MIDI Studio will not list the device until you **reset out of pairing mode** (press reset without A+B, or reflash).
 
 Bluetooth must be enabled in the firmware: adding this extension pulls in the `bluetooth` package, which turns the stack on. You do **not** need separate “start accelerometer” blocks for MIDI to work.
 
 ### MIDI Studio shows the device but Connect reverts to Connect
 
 1. Flash **v2.0.21+** (advertising layout + dual read/CCCD handshake).
-2. **Reset bonds:** hold **A+B**, press **reset** (pairing mode), or reflash; on the Mac, **forget** every “BBC micro:bit” entry in **System Settings → Bluetooth**.
+2. **Reset bonds:** on the Mac, **forget** every “BBC micro:bit” in **System Settings → Bluetooth**. On the board, either **reflash** or enter pairing mode (A+B + reset) to clear bonds, then **reset again without A+B** so normal MIDI advertising resumes before you scan in MIDI Studio.
 3. Connect only from **Audio MIDI Setup → Bluetooth → Central** (bottom panel), not System Settings.
 4. In nRF Connect (optional check): **Advertisement** tab should show the **128-bit MIDI UUID in Scan Response**; after Connect, wait until **CCCD** is written `01:00`, then the link should stay up.
-5. If it still drops, switch MakeCode to the extension user config **“Just Works pairing”**, reflash, forget the device on the Mac again, and retry.
+5. If it still drops, set **Project Settings → Bluetooth → Just Works**, download a new `.hex`, flash, forget the device on the Mac, and retry (see **Yotta conflict** below if the build fails).
+
+### Yotta conflict on `microbit-dal.bluetooth.open`
+
+If MakeCode reports a conflict between **bluetooth** and **bluetooth-midi** on `open`, upgrade to **bluetooth-midi v2.0.22+** (this repo), which no longer forces `open`/`whitelist` — only the main **Bluetooth** extension / Project Settings control pairing. Remove the bluetooth-midi “Just Works pairing” user config if it still appears; use **Project Settings → Bluetooth → Just Works** instead.
 
 ### Scanner sees the micro:bit but connection times out
 
