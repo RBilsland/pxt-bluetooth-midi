@@ -1,6 +1,6 @@
 {
     "name": "bluetooth-midi",
-    "version": "2.0.19",
+    "version": "2.0.21",
     "description": "A Bluetooth MIDI service",
     "license": "MIT",
     "dependencies": {
@@ -27,12 +27,25 @@
             "microbit-dal": {
                 "bluetooth": {
                     "enabled": 1,
-                    "open": 0,
-                    "whitelist": 0,
-                    "security_level": "SECURITY_MODE_ENCRYPTION_NO_MITM"
+                    "open": 1,
+                    "whitelist": 0
                 },
-                "gatt_table_size": "0x700"
+                "gatt_table_size": "0x800"
             }
-        }
+        },
+        "userConfigs": [
+            {
+                "description": "Just Works pairing (encrypted link, try if open mode fails on Mac)",
+                "config": {
+                    "microbit-dal": {
+                        "bluetooth": {
+                            "open": 0,
+                            "whitelist": 0,
+                            "security_level": "SECURITY_MODE_ENCRYPTION_NO_MITM"
+                        }
+                    }
+                }
+            }
+        ]
     }
 }

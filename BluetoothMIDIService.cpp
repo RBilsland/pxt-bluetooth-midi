@@ -31,42 +31,53 @@
 
 using namespace codal;
 
-// BLE MIDI spec: centrals (macOS Audio MIDI Setup, iOS) scan for this 128-bit UUID in advertisements.
-static const uint8_t midi_adv_payload[] = {
-    0x02, 0x01, 0x06,
+// Nordic BLE-MIDI guide: device name in advertising, 128-bit MIDI UUID in scan response.
+static const uint8_t midi_scanrsp_uuid[] = {
     0x11, 0x07,
     0x00, 0xc7, 0xc4, 0x4e, 0xe3, 0x6c, 0x51, 0xa7,
     0x33, 0x4b, 0xe8, 0xed, 0x5a, 0x0e, 0xb8, 0x03,
 };
+
+void BluetoothMIDIService::requestMidiConnectionParams(microbit_gaphandle_t conn)
+{
+    if (conn == BLE_CONN_HANDLE_INVALID)
+        return;
+
+    ble_gap_conn_params_t params;
+    memset(&params, 0, sizeof(params));
+    params.min_conn_interval = 6;   // 7.5 ms
+    params.max_conn_interval = 12;  // 15 ms (BLE MIDI spec maximum)
+    params.slave_latency = 0;
+    params.conn_sup_timeout = 400;
+    sd_ble_gap_conn_param_update(conn, &params);
+}
 
 void BluetoothMIDIService::configureMidiAdvertising(uint8_t serviceUuidType)
 {
     (void)serviceUuidType;
 
     uint8_t adv_handle = 0;
-    uint8_t enc_scanrsp[BLE_GAP_ADV_SET_DATA_SIZE_MAX];
-    uint16_t scan_len = sizeof(enc_scanrsp);
+    uint8_t enc_adv[BLE_GAP_ADV_SET_DATA_SIZE_MAX];
+    uint16_t adv_len = sizeof(enc_adv);
 
-    // macOS Audio MIDI Setup scans for AD type 0x07 (complete 128-bit service UUID).
-    // ble_advdata_encode() with uuids_complete only emits a 16-bit alias, which iOS/macOS
-    // BLE MIDI centrals do not treat as a MIDI peripheral in their picker.
-    const uint16_t adv_len = sizeof(midi_adv_payload);
-
-    ble_advdata_t srdata;
-    memset(&srdata, 0, sizeof(srdata));
-    srdata.name_type = BLE_ADVDATA_FULL_NAME;
-    uint32_t err = ble_advdata_encode(&srdata, enc_scanrsp, &scan_len);
-    if (err != NRF_SUCCESS)
-        scan_len = 0;
+    ble_advdata_t advdata;
+    memset(&advdata, 0, sizeof(advdata));
+    advdata.flags = BLE_GAP_ADV_FLAG_BR_EDR_NOT_SUPPORTED | BLE_GAP_ADV_FLAG_LE_GENERAL_DISC_MODE;
+    advdata.name_type = BLE_ADVDATA_FULL_NAME;
+    uint32_t err = ble_advdata_encode(&advdata, enc_adv, &adv_len);
+    if (err != NRF_SUCCESS) {
+        adv_len = 3;
+        enc_adv[0] = 0x02;
+        enc_adv[1] = 0x01;
+        enc_adv[2] = 0x06;
+    }
 
     ble_gap_adv_data_t gap_adv_data;
     memset(&gap_adv_data, 0, sizeof(gap_adv_data));
-    gap_adv_data.adv_data.p_data = (uint8_t *)midi_adv_payload;
+    gap_adv_data.adv_data.p_data = enc_adv;
     gap_adv_data.adv_data.len = adv_len;
-    if (scan_len > 0) {
-        gap_adv_data.scan_rsp_data.p_data = enc_scanrsp;
-        gap_adv_data.scan_rsp_data.len = scan_len;
-    }
+    gap_adv_data.scan_rsp_data.p_data = (uint8_t *)midi_scanrsp_uuid;
+    gap_adv_data.scan_rsp_data.len = sizeof(midi_scanrsp_uuid);
 
     ble_gap_adv_params_t gap_adv_params;
     memset(&gap_adv_params, 0, sizeof(gap_adv_params));
@@ -105,17 +116,19 @@ const uint16_t BluetoothMIDIService::charUUID[mbbs_cIdxCOUNT] = { 0xe5db };
 BluetoothMIDIService::BluetoothMIDIService(BLEDevice &_ble)
 {
     memset(midiBuffer, 0, sizeof(midiBuffer));
-    firstRead = true;
+    pendingHandshake = true;
 
     RegisterBaseUUID(service_base_uuid);
     CreateService(serviceUUID);
     uint8_t serviceUuidType = bs_uuid_type;
 
     RegisterBaseUUID(char_base_uuid);
-    // BLE MIDI spec: read (empty), write-without-response, notify (see Nordic BLE-MIDI guide).
+    uint16_t props = microbit_propREAD | microbit_propWRITE | microbit_propWRITE_WITHOUT | microbit_propNOTIFY;
+#if !CONFIG_ENABLED(MICROBIT_BLE_OPEN)
+    props |= microbit_propREADAUTH;
+#endif
     CreateCharacteristic(mbbs_cIdxMIDI, charUUID[mbbs_cIdxMIDI],
-        midiBuffer, 0, sizeof(midiBuffer),
-        microbit_propREAD | microbit_propREADAUTH | microbit_propWRITE_WITHOUT | microbit_propNOTIFY);
+        midiBuffer, 0, sizeof(midiBuffer), props);
 
     configureMidiAdvertising(serviceUuidType);
 
@@ -123,27 +136,22 @@ BluetoothMIDIService::BluetoothMIDIService(BLEDevice &_ble)
         MicroBitBLEManager::manager->servicesChanged();
 }
 
-void BluetoothMIDIService::onConnect(const microbit_ble_evt_t *p_ble_evt)
+bool BluetoothMIDIService::onBleEvent(const microbit_ble_evt_t *p_ble_evt)
 {
-    (void)p_ble_evt;
-    firstRead = true;
+    switch (p_ble_evt->header.evt_id) {
+        case BLE_GAP_EVT_CONN_SEC_UPDATE:
+            requestMidiConnectionParams(p_ble_evt->evt.gap_evt.conn_handle);
+            break;
+        default:
+            break;
+    }
+    return MicroBitBLEService::onBleEvent(p_ble_evt);
 }
 
-void BluetoothMIDIService::sendEmptyMidiNotification()
+void BluetoothMIDIService::onConnect(const microbit_ble_evt_t *p_ble_evt)
 {
-    if (!getConnected())
-        return;
-
-    // v1 mbed path called gattServer().notify() before CCCD subscribe; match that here.
-    uint16_t len = 0;
-    ble_gatts_hvx_params_t hvx_params;
-    memset(&hvx_params, 0, sizeof(hvx_params));
-    hvx_params.handle = valueHandle(mbbs_cIdxMIDI);
-    hvx_params.type = BLE_GATT_HVX_NOTIFICATION;
-    hvx_params.offset = 0;
-    hvx_params.p_len = &len;
-    hvx_params.p_data = midiBuffer;
-    sd_ble_gatts_hvx(getConnectionHandle(), &hvx_params);
+    pendingHandshake = true;
+    requestMidiConnectionParams(p_ble_evt->evt.gap_evt.conn_handle);
 }
 
 void BluetoothMIDIService::onDataRead(microbit_onDataRead_t *params)
@@ -151,15 +159,15 @@ void BluetoothMIDIService::onDataRead(microbit_onDataRead_t *params)
     if (params->handle != valueHandle(mbbs_cIdxMIDI))
         return;
 
-    if (firstRead) {
-        sendEmptyMidiNotification();
-        firstRead = false;
-    }
-
     params->data = midiBuffer;
     params->length = 0;
     params->allow = true;
     params->update = true;
+
+    if (pendingHandshake) {
+        notifyChrValue(mbbs_cIdxMIDI, midiBuffer, 0);
+        pendingHandshake = false;
+    }
 }
 
 void BluetoothMIDIService::onDataWritten(const microbit_ble_evt_write_t *params)
@@ -169,16 +177,19 @@ void BluetoothMIDIService::onDataWritten(const microbit_ble_evt_write_t *params)
     if (idx < 0)
         return;
 
-    if (type == microbit_charattrCCCD && params->len == 2 && firstRead) {
-        sendEmptyMidiNotification();
-        firstRead = false;
+    if (type == microbit_charattrCCCD && params->len == 2) {
+        uint16_t cccd = uint16_decode(params->data);
+        if ((cccd & BLE_GATT_HVX_NOTIFICATION) && pendingHandshake) {
+            notifyChrValue(mbbs_cIdxMIDI, midiBuffer, 0);
+            pendingHandshake = false;
+        }
     }
 }
 
 void BluetoothMIDIService::onDisconnect(const microbit_ble_evt_t *p_ble_evt)
 {
     (void)p_ble_evt;
-    firstRead = true;
+    pendingHandshake = true;
 }
 
 bool BluetoothMIDIService::connected()
@@ -249,7 +260,7 @@ const uint8_t midiServiceUuid[] = {
 
 BluetoothMIDIService::BluetoothMIDIService(BLEDevice &_ble): ble(_ble) {
     memset(midiBuffer, 0, sizeof(midiBuffer));
-    firstRead = true;
+    pendingHandshake = true;
 
     GattCharacteristic midiCharacteristic(midiCharacteristicUuid, midiBuffer, 0, sizeof(midiBuffer),
           GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_READ
@@ -276,17 +287,16 @@ void BluetoothMIDIService::onDataRead(const GattReadCallbackParams* params)
 {
     if (params->handle == midiCharacteristicHandle)
     {
-        if (firstRead) {
-            // send empty payload upon first connect
+        if (pendingHandshake) {
             ble.gattServer().notify(midiCharacteristicHandle, (uint8_t *)midiBuffer, 0);
-            firstRead = false;
+            pendingHandshake = false;
         }
     }
 }
 
 void BluetoothMIDIService::onDisconnection(const Gap::DisconnectionCallbackParams_t* params) {
     (void)params;
-    firstRead = true;
+    pendingHandshake = true;
 }
 
 bool BluetoothMIDIService::connected() {

@@ -47,15 +47,16 @@ public:
     void sendMidiMessage(uint8_t data0, uint8_t data1, uint8_t data2);
 
 private:
+    bool onBleEvent(const microbit_ble_evt_t *p_ble_evt) override;
     void onConnect(const microbit_ble_evt_t *p_ble_evt) override;
     void onDataRead(microbit_onDataRead_t *params) override;
     void onDataWritten(const microbit_ble_evt_write_t *params) override;
     void onDisconnect(const microbit_ble_evt_t *p_ble_evt) override;
     void configureMidiAdvertising(uint8_t serviceUuidType);
-    void sendEmptyMidiNotification();
+    void requestMidiConnectionParams(microbit_gaphandle_t conn);
 
     uint8_t midiBuffer[BLE_MIDI_CHAR_MAX_LEN];
-    bool firstRead;
+    bool pendingHandshake;
 
     typedef enum mbbs_cIdx
     {
@@ -99,7 +100,7 @@ private:
     void onDisconnection(const Gap::DisconnectionCallbackParams_t* params);
 
     uint8_t midiBuffer[BLE_MIDI_CHAR_MAX_LEN];
-    bool firstRead;
+    bool pendingHandshake;
 
     BLEDevice &ble;
     GattAttribute::Handle_t midiCharacteristicHandle;

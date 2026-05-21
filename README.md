@@ -30,9 +30,9 @@ Any app that supports a BLE MIDI keyboard should work.
 3. In the **Central** section (bottom), wait for your @boardname@ to appear, select it, and click **Connect**.
 4. The device should then show as a MIDI input in other apps.
 
-**Important for Mac:** use **Just Works pairing** (MakeCode default), **not** “No Pairing Required”. macOS Core MIDI expects an encrypted BLE link; open/unencrypted mode can connect in nRF Connect but still not appear in the MIDI Studio Bluetooth list.
+**Important for Mac:** v2.0.21 defaults to **No Pairing Required** (open link). If connect still fails, try the extension’s **Just Works pairing** user config in MakeCode Project Settings.
 
-You must flash **v2.0.19** or later on a **micro:bit v2**: v2.0.17 always advertises the **full 128-bit** MIDI UUID (`0x07` AD type). Older builds sometimes advertised only a 16-bit alias (visible in nRF Connect **after** connect, but invisible to macOS MIDI scan). (micro:bit v1 + macOS is not supported for discovery.)
+You must flash **v2.0.21** or later on a **micro:bit v2**: v2.0.17 always advertises the **full 128-bit** MIDI UUID (`0x07` AD type). Older builds sometimes advertised only a 16-bit alias (visible in nRF Connect **after** connect, but invisible to macOS MIDI scan). (micro:bit v1 + macOS is not supported for discovery.)
 
 ### Apple GarageBand
 
@@ -45,13 +45,13 @@ If the @boardname@ is marked as offline, click **Edit** and **Forget** the devic
 
 micro:bit v2 uses the **CODAL** runtime, not the v1 **DAL/mbed** stack. Older releases of this extension only implemented BLE MIDI with mbed APIs, so they **did not compile for v2**. MakeCode then disabled the package for v2 boards and showed **[error 929](https://support.microbit.org/support/solutions/articles/19000121371-makecode-extension-compatibility-v1-and-v2)** (“extension not compatible with this board”).
 
-From **v2.0.14** onward, the extension builds on both v1 and v2: v2 uses the same CODAL BLE service model as the built-in Bluetooth blocks. **v2.0.15+** advertises the MIDI service UUID; **v2.0.16** fixes connection timeouts; **v2.0.17** fixes macOS MIDI scan (128-bit UUID in advertisements + Just Works security); **v2.0.18** adds BLE MIDI characteristic properties; **v2.0.19** restores the initial empty read/notify handshake macOS expects (matching v1/iOS). If you still see error 929, remove and re-add the extension (or use this repo version) and download a fresh `.hex` after upgrading.
+From **v2.0.14** onward, the extension builds on both v1 and v2: v2 uses the same CODAL BLE service model as the built-in Bluetooth blocks. **v2.0.15+** advertises the MIDI service UUID; **v2.0.16** fixes connection timeouts; **v2.0.17+** fixes macOS MIDI scan; **v2.0.21** fixes advertising layout (UUID in scan response), open-mode connect, and empty read/notify handshake (read or CCCD, whichever comes first). If you still see error 929, remove and re-add the extension (or use this repo version) and download a fresh `.hex` after upgrading.
 
 ## Troubleshooting BLE scanners (Android / nRF Connect)
 
 ### The device does not show up when scanning
 
-This extension’s firmware defaults to **Just Works pairing, no whitelist** so MIDI centrals (especially macOS) can discover and encrypt the link. If you previously chose **“No Pairing Required”** for Android testing, switch back to **Just Works** for Mac MIDI Studio, then download a new `.hex`.
+This extension’s firmware defaults to **No Pairing Required (open), no whitelist**. For Mac, if connect still fails after v2.0.20, try the **Just Works pairing** user config in MakeCode Project Settings, then download a new `.hex`.
 
 If the board is missing from scans entirely, try **pairing mode** once: hold **A + B**, press **reset**, release reset (keep A + B until “PAIRING MODE” scrolls), then scan again.
 
@@ -59,9 +59,11 @@ Bluetooth must be enabled in the firmware: adding this extension pulls in the `b
 
 ### MIDI Studio shows the device but Connect reverts to Connect
 
-Flash **v2.0.19+**: macOS reads the MIDI characteristic once and expects an **empty notification** immediately (as on v1/iOS). v2.0.18 only sent that after you enabled notifications, so the handshake failed.
-
-Also **forget** the micro:bit in **System Settings → Bluetooth** and in MIDI Studio, then connect again from MIDI Studio **Central** only.
+1. Flash **v2.0.21+** (advertising layout + dual read/CCCD handshake).
+2. **Reset bonds:** hold **A+B**, press **reset** (pairing mode), or reflash; on the Mac, **forget** every “BBC micro:bit” entry in **System Settings → Bluetooth**.
+3. Connect only from **Audio MIDI Setup → Bluetooth → Central** (bottom panel), not System Settings.
+4. In nRF Connect (optional check): **Advertisement** tab should show the **128-bit MIDI UUID in Scan Response**; after Connect, wait until **CCCD** is written `01:00`, then the link should stay up.
+5. If it still drops, switch MakeCode to the extension user config **“Just Works pairing”**, reflash, forget the device on the Mac again, and retry.
 
 ### Scanner sees the micro:bit but connection times out
 
