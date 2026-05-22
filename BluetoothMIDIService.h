@@ -54,9 +54,11 @@ private:
     void onDisconnect(const microbit_ble_evt_t *p_ble_evt) override;
     void configureMidiAdvertising(uint8_t serviceUuidType);
     void requestMidiConnectionParams(microbit_gaphandle_t conn);
+    void completeMidiHandshake();
 
     uint8_t midiBuffer[BLE_MIDI_CHAR_MAX_LEN];
     bool pendingHandshake;
+    uint8_t midiAdvUuidType;
 
     typedef enum mbbs_cIdx
     {

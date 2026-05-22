@@ -59,7 +59,7 @@ Bluetooth must be enabled in the firmware: adding this extension pulls in the `b
 
 ### MIDI Studio shows the device but Connect reverts to Connect
 
-1. Flash **v2.0.21+** (advertising layout + dual read/CCCD handshake).
+1. Flash **v2.0.23+** (handshake notify only after Subscribe/CCCD — fixes macOS MIDI Studio “Connect” bounce).
 2. **Reset bonds:** on the Mac, **forget** every “BBC micro:bit” in **System Settings → Bluetooth**. On the board, either **reflash** or enter pairing mode (A+B + reset) to clear bonds, then **reset again without A+B** so normal MIDI advertising resumes before you scan in MIDI Studio.
 3. Connect only from **Audio MIDI Setup → Bluetooth → Central** (bottom panel), not System Settings.
 4. In nRF Connect (optional check): **Advertisement** tab should show the **128-bit MIDI UUID in Scan Response**; after Connect, wait until **CCCD** is written `01:00`, then the link should stay up.
