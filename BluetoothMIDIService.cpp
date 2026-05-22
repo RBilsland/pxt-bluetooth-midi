@@ -38,19 +38,9 @@ static const uint8_t midi_scanrsp_uuid[] = {
     0x33, 0x4b, 0xe8, 0xed, 0x5a, 0x0e, 0xb8, 0x03,
 };
 
-void BluetoothMIDIService::requestMidiConnectionParams(microbit_gaphandle_t conn)
-{
-    if (conn == BLE_CONN_HANDLE_INVALID)
-        return;
-
-    ble_gap_conn_params_t params;
-    memset(&params, 0, sizeof(params));
-    params.min_conn_interval = 6;   // 7.5 ms
-    params.max_conn_interval = 12;  // 15 ms (BLE MIDI spec maximum)
-    params.slave_latency = 0;
-    params.conn_sup_timeout = 400;
-    sd_ble_gap_conn_param_update(conn, &params);
-}
+// BLE-MIDI empty packet: header + timestamp with zero time bits (nRF cannot HVX length 0).
+static const uint8_t midi_handshake_pkt[] = { 0x80, 0x80 };
+static const uint16_t midi_handshake_len = sizeof(midi_handshake_pkt);
 
 void BluetoothMIDIService::configureMidiAdvertising(uint8_t serviceUuidType)
 {
@@ -133,18 +123,6 @@ BluetoothMIDIService::BluetoothMIDIService(BLEDevice &_ble)
         MicroBitBLEManager::manager->servicesChanged();
 }
 
-bool BluetoothMIDIService::onBleEvent(const microbit_ble_evt_t *p_ble_evt)
-{
-    switch (p_ble_evt->header.evt_id) {
-        case BLE_GAP_EVT_CONN_SEC_UPDATE:
-            requestMidiConnectionParams(p_ble_evt->evt.gap_evt.conn_handle);
-            break;
-        default:
-            break;
-    }
-    return MicroBitBLEService::onBleEvent(p_ble_evt);
-}
-
 void BluetoothMIDIService::completeMidiHandshake()
 {
     // notifyChrValue() only works after the central writes CCCD (Subscribe).
@@ -155,7 +133,7 @@ void BluetoothMIDIService::completeMidiHandshake()
         return;
     if (!chars[mbbs_cIdxMIDI].cccdNotify())
         return;
-    if (notifyChrValue(mbbs_cIdxMIDI, midiBuffer, 0))
+    if (notifyChrValue(mbbs_cIdxMIDI, midi_handshake_pkt, midi_handshake_len))
         pendingHandshake = false;
 }
 
@@ -189,6 +167,8 @@ void BluetoothMIDIService::onDataWritten(const microbit_ble_evt_write_t *params)
         uint16_t cccd = uint16_decode(params->data);
         if (cccd & BLE_GATT_HVX_NOTIFICATION)
             completeMidiHandshake();
+    } else if (idx == mbbs_cIdxMIDI) {
+        completeMidiHandshake();
     }
 }
 
