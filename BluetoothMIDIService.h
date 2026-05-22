@@ -46,6 +46,8 @@ public:
     void sendMidiMessage(uint8_t data0, uint8_t data1);
     void sendMidiMessage(uint8_t data0, uint8_t data1, uint8_t data2);
 
+    void runHandshakeRetries();
+
 private:
     void onConnect(const microbit_ble_evt_t *p_ble_evt) override;
     void onDataRead(microbit_onDataRead_t *params) override;
@@ -53,6 +55,7 @@ private:
     void onDisconnect(const microbit_ble_evt_t *p_ble_evt) override;
     void configureMidiAdvertising(uint8_t serviceUuidType);
     void completeMidiHandshake();
+    void scheduleMidiHandshake();
 
     uint8_t midiBuffer[BLE_MIDI_CHAR_MAX_LEN];
     bool pendingHandshake;

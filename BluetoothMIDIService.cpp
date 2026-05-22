@@ -28,8 +28,14 @@
 #include "ble_advdata.h"
 #include "ble_gap.h"
 #include "ble_gatt.h"
+#include "CodalFiber.h"
 
 using namespace codal;
+
+static void midiHandshakeFiber(void *param)
+{
+    ((BluetoothMIDIService *)param)->runHandshakeRetries();
+}
 
 // Nordic BLE-MIDI guide: device name in advertising, 128-bit MIDI UUID in scan response.
 static const uint8_t midi_scanrsp_uuid[] = {
@@ -114,6 +120,9 @@ BluetoothMIDIService::BluetoothMIDIService(BLEDevice &_ble)
 
     RegisterBaseUUID(char_base_uuid);
     uint16_t props = microbit_propREAD | microbit_propWRITE | microbit_propWRITE_WITHOUT | microbit_propNOTIFY;
+#if !CONFIG_ENABLED(MICROBIT_BLE_OPEN)
+    props |= microbit_propREADAUTH;
+#endif
     CreateCharacteristic(mbbs_cIdxMIDI, charUUID[mbbs_cIdxMIDI],
         midiBuffer, 0, sizeof(midiBuffer), props);
 
@@ -125,22 +134,46 @@ BluetoothMIDIService::BluetoothMIDIService(BLEDevice &_ble)
 
 void BluetoothMIDIService::completeMidiHandshake()
 {
-    // notifyChrValue() only works after the central writes CCCD (Subscribe).
-    // macOS MIDI Studio often reads the characteristic first; an early notify
-    // fails silently and used to clear pendingHandshake, so no notify was sent
-    // after Subscribe — Connect then bounced back to Connect.
     if (!pendingHandshake || !getConnected())
         return;
     if (!chars[mbbs_cIdxMIDI].cccdNotify())
         return;
-    if (notifyChrValue(mbbs_cIdxMIDI, midi_handshake_pkt, midi_handshake_len))
+
+    microbit_gaphandle_t conn = getConnectionHandle();
+    uint16_t len = midi_handshake_len;
+    ble_gatts_hvx_params_t hvx;
+    memset(&hvx, 0, sizeof(hvx));
+    hvx.handle = valueHandle(mbbs_cIdxMIDI);
+    hvx.type = BLE_GATT_HVX_NOTIFICATION;
+    hvx.p_len = &len;
+    hvx.p_data = (uint8_t *)midi_handshake_pkt;
+
+    if (sd_ble_gatts_hvx(conn, &hvx) == NRF_SUCCESS)
         pendingHandshake = false;
+}
+
+void BluetoothMIDIService::scheduleMidiHandshake()
+{
+    if (!pendingHandshake || !getConnected())
+        return;
+    create_fiber(midiHandshakeFiber, this);
+}
+
+void BluetoothMIDIService::runHandshakeRetries()
+{
+    for (int attempt = 0; attempt < 24 && pendingHandshake; attempt++) {
+        fiber_sleep(50);
+        if (!getConnected())
+            return;
+        completeMidiHandshake();
+    }
 }
 
 void BluetoothMIDIService::onConnect(const microbit_ble_evt_t *p_ble_evt)
 {
     (void)p_ble_evt;
     pendingHandshake = true;
+    scheduleMidiHandshake();
 }
 
 void BluetoothMIDIService::onDataRead(microbit_onDataRead_t *params)
@@ -153,7 +186,7 @@ void BluetoothMIDIService::onDataRead(microbit_onDataRead_t *params)
     params->allow = true;
     params->update = true;
 
-    completeMidiHandshake();
+    scheduleMidiHandshake();
 }
 
 void BluetoothMIDIService::onDataWritten(const microbit_ble_evt_write_t *params)
@@ -166,9 +199,9 @@ void BluetoothMIDIService::onDataWritten(const microbit_ble_evt_write_t *params)
     if (type == microbit_charattrCCCD && params->len == 2) {
         uint16_t cccd = uint16_decode(params->data);
         if (cccd & BLE_GATT_HVX_NOTIFICATION)
-            completeMidiHandshake();
+            scheduleMidiHandshake();
     } else if (idx == mbbs_cIdxMIDI) {
-        completeMidiHandshake();
+        scheduleMidiHandshake();
     }
 }
 

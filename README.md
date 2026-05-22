@@ -30,7 +30,7 @@ Any app that supports a BLE MIDI keyboard should work.
 3. In the **Central** section (bottom), wait for your @boardname@ to appear, select it, and click **Connect**.
 4. The device should then show as a MIDI input in other apps.
 
-**Important for Mac:** set pairing in **MakeCode Project Settings** (gear icon) → **Bluetooth** → **Just Works** (not “No Pairing Required”). Do **not** use a separate bluetooth-midi “user config” — it conflicts with the Bluetooth extension (see troubleshooting below).
+**Important for Mac:** use **Project Settings → Bluetooth → No Pairing Required** for MIDI Studio (Just Works can pair silently but often still fails Core MIDI). Flash **v2.0.25+**.
 
 You must flash **v2.0.21** or later on a **micro:bit v2**: v2.0.17 always advertises the **full 128-bit** MIDI UUID (`0x07` AD type). Older builds sometimes advertised only a 16-bit alias (visible in nRF Connect **after** connect, but invisible to macOS MIDI scan). (micro:bit v1 + macOS is not supported for discovery.)
 
@@ -59,11 +59,11 @@ Bluetooth must be enabled in the firmware: adding this extension pulls in the `b
 
 ### MIDI Studio shows the device but Connect reverts to Connect
 
-1. Flash **v2.0.24+** (handshake sends a valid 2-byte BLE-MIDI empty notify; nRF cannot notify with length 0).
-2. **Reset bonds:** on the Mac, **forget** every “BBC micro:bit” in **System Settings → Bluetooth**. On the board, either **reflash** or enter pairing mode (A+B + reset) to clear bonds, then **reset again without A+B** so normal MIDI advertising resumes before you scan in MIDI Studio.
-3. Connect only from **Audio MIDI Setup → Bluetooth → Central** (bottom panel), not System Settings.
-4. In nRF Connect (optional check): **Advertisement** tab should show the **128-bit MIDI UUID in Scan Response**; after Connect, wait until **CCCD** is written `01:00`, then the link should stay up.
-5. If it still drops, set **Project Settings → Bluetooth → Just Works**, download a new `.hex`, flash, forget the device on the Mac, and retry (see **Yotta conflict** below if the build fails).
+1. Flash **v2.0.25+** (deferred handshake notify after Subscribe; disables Event service for faster GATT discovery).
+2. Use **No Pairing Required** in Project Settings → Bluetooth (recommended for MIDI Studio on Mac).
+3. **Reset bonds:** forget “BBC micro:bit” on the Mac; reflash or pairing mode (A+B + reset), then **reset without A+B** before scanning in MIDI Studio.
+4. Connect only from **Audio MIDI Setup → Bluetooth → Central**, not System Settings.
+5. In LightBlue on Mac: after **Subscribe**, confirm a **2-byte** notification (`80 80`) arrives — that is the handshake MIDI Studio needs.
 
 ### Yotta conflict on `microbit-dal.bluetooth.open`
 
