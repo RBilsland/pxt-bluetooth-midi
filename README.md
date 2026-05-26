@@ -2,7 +2,7 @@
 
 A [Bluetooth low energy MIDI](https://www.midi.org/specifications/item/bluetooth-le-midi) 
 support for the @boardname@.
-**iOS and macOS** (via Audio MIDI Setup Bluetooth MIDI).
+**iOS, macOS, Android, and Windows** (via BLE MIDI apps; see **Supported Platforms**).
 
 ### ~hint
 ![](/static/bluetooth/Bluetooth_SIG.png)
@@ -18,10 +18,58 @@ This package allows the @boardname@ to act as a MIDI peripherical, like a piano.
 This library uses the [MIDI package](/pkg/microsoft/pxt-midi). 
 Please refer to that project documentation for further details on using MIDI commands.
 
+## MIDI blocks
+
+Most blocks under **MIDI** come from [pxt-midi](https://github.com/microsoft/pxt-midi), not from bluetooth-midi itself. This extension only adds the Bluetooth transport so those messages reach a phone, tablet, or Mac.
+
+Use **`midi channel` _N_** first; blocks like notes and control change apply to that channel (1–16).
+
+### Control change _controller_ to _value_
+
+Sends a **MIDI Control Change (CC)** message. It does not play a note; it tells the connected app or instrument to adjust a setting (volume, effects, pedals, and so on).
+
+| Block input | Range | Meaning |
+|-------------|-------|---------|
+| First number (controller) | 0–119 | Which control you are changing (see table below) |
+| Second number (value) | 0–127 | New level (0 = minimum, 127 = maximum) |
+
+Example: **`control change 7 to 100`** sets **channel volume** (controller 7) to a high level on the channel you selected.
+
+```blocks
+let synth = midi.channel(1)
+synth.controlChange(7, 100)   // volume up
+synth.controlChange(64, 127)  // sustain pedal on (≥64 = pressed)
+```
+
+Common controller numbers (the receiving app decides how each is used):
+
+| Controller | Typical use |
+|------------|-------------|
+| **1** | Modulation / vibrato |
+| **7** | Channel volume |
+| **10** | Pan (left–right) |
+| **11** | Expression |
+| **64** | Sustain pedal (0 = off, 127 = on) |
+| **91** | Reverb amount |
+| **93** | Chorus amount |
+
+Controllers **120–127** are reserved for special **channel mode** messages; use the **`mode`** block for those (for example “all notes off”), not **control change**.
+
+### Other useful MIDI blocks
+
+| Block | What it does |
+|-------|----------------|
+| **note** / **note on** / **note off** | Play or stop musical notes |
+| **set instrument** / **program change** | Change the instrument sound |
+| **set pitch bend** | Bend pitch up or down |
+| **play tone** / **play drum** | Shortcuts on channel 1 or the drum channel (10) |
+
+The connected app must support the message you send. If nothing happens, try a different controller number or test with **note** blocks first to confirm the Bluetooth MIDI link is working.
+
 ## Supported Platforms
 
-This package supports **iOS** (iPad/iPhone) and **macOS** (Audio MIDI Setup → Bluetooth configuration, Central role).
-Any app that supports a BLE MIDI keyboard should work.
+This package supports **iOS** (iPad/iPhone), **macOS** (Audio MIDI Setup), **Android** (nRF Connect, LightBlue), and **Windows** (with a BLE MIDI bridge app).
+Any app that acts as a **BLE MIDI central** and supports the standard MIDI service can connect to the @boardname@.
 
 ### macOS Audio MIDI Setup
 
@@ -41,6 +89,22 @@ You must flash **v2.0.21** or later on a **micro:bit v2**: v2.0.17 always advert
 Go to settings (gearwheel), click **Advanced**, click **Bluetooth MIDI device** and connect to the @boardname@.
 If the @boardname@ is marked as offline, click **Edit** and **Forget** the device.
 
+### Windows
+
+The @boardname@ implements **standard BLE MIDI**, so Windows can use it, but Windows does **not** offer a built-in flow like macOS **MIDI Studio**. Pairing in **Settings → Bluetooth** alone usually does **not** create a MIDI port for your DAW.
+
+**Recommended setup (Windows 11):**
+
+1. Flash **v2.0.25+** on a **micro:bit v2** with **Project Settings → Bluetooth → No Pairing Required**.
+2. Run the @boardname@ in **normal mode** (not the “PAIRING MODE” screen).
+3. Install a **BLE MIDI bridge** that scans, connects, and exposes a virtual MIDI port, for example **[Perfect Bluetooth MIDI for Windows](https://github.com/mayerwin/Perfect-Bluetooth-MIDI-For-Windows)** (free, open source). Recent Windows 11 builds include [Windows MIDI Services](https://github.com/microsoft/MIDI); the bridge routes BLE MIDI into that stack until native BLE MIDI transport is available in-box.
+4. In the bridge app: **Scan** → select **BBC micro:bit** → **Connect** → pick the virtual port in your DAW (Ableton, FL Studio, Reaper, Cubase, etc.).
+5. If notes do not appear, use the bridge’s **channel detect** or mapping options; confirm **note** blocks work before testing **control change**.
+
+**Other options on Windows:** any tool that implements a BLE MIDI **central** (some users test with phone apps; **nRF Connect for Desktop** needs a Nordic USB dongle and does not use the PC’s built-in Bluetooth).
+
+**micro:bit v1 on Windows:** the extension still builds for v1, but BLE MIDI advertising fixes were developed for **v2**; use a v2 board for the most reliable Windows experience.
+
 ## micro:bit v2
 
 micro:bit v2 uses the **CODAL** runtime, not the v1 **DAL/mbed** stack. Older releases of this extension only implemented BLE MIDI with mbed APIs, so they **did not compile for v2**. MakeCode then disabled the package for v2 boards and showed **[error 929](https://support.microbit.org/support/solutions/articles/19000121371-makecode-extension-compatibility-v1-and-v2)** (“extension not compatible with this board”).
@@ -51,7 +115,7 @@ From **v2.0.14** onward, the extension builds on both v1 and v2: v2 uses the sam
 
 ### The device does not show up when scanning
 
-Pairing mode (**No Pairing Required** vs **Just Works**) is chosen in **Project Settings → Bluetooth**, not in this extension. For macOS MIDI Studio, use **Just Works**, download a new `.hex`, and flash.
+Pairing mode (**No Pairing Required** vs **Just Works**) is chosen in **Project Settings → Bluetooth**, not in this extension. For macOS MIDI Studio, use **No Pairing Required** and flash **v2.0.25+**.
 
 If the board is missing from scans entirely, ensure the program is **running normally** (not the “PAIRING MODE” screen). **Pairing mode does not advertise the MIDI UUID**, so macOS MIDI Studio will not list the device until you **reset out of pairing mode** (press reset without A+B, or reflash).
 
@@ -86,6 +150,10 @@ If you connected earlier, **disconnect**, **forget** the device in Android Bluet
 ### GarageBand / iOS still cannot see MIDI
 
 iOS discovers BLE MIDI through the app (Settings → Advanced → Bluetooth MIDI), not a generic scanner. Pair or use **No Pairing Required**, flash the latest hex, and ensure the program runs (the extension starts the MIDI service automatically on boot).
+
+## Acknowledgements
+
+**micro:bit v2** and **macOS MIDI Studio** compatibility (v2.0.14–v2.0.25), including advertising, GATT handshake, and MakeCode pairing settings, was developed with help from **[Cursor](https://cursor.com) Composer** (AI coding assistant in the Cursor IDE), in collaboration with [Robert Bilsland](https://github.com/RBilsland).
 
 ## Supported targets
 
