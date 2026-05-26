@@ -11,6 +11,39 @@ For another device like a smartphone to use any of the Bluetooth "services" whic
 
 ### ~
 
+## Adding the extension in MakeCode
+
+Use this flow to install the extension from GitHub (including this fork with **micro:bit v2** and **macOS MIDI Studio** fixes). The published MakeCode gallery version may be older; importing by URL always uses the code from that repository.
+
+1. Open **[makecode.microbit.org](https://makecode.microbit.org)**.
+2. Create or open a project.
+3. Select the **micro:bit v2** board (bottom toolbar or **Project Settings**).
+4. Click the **Extensions** button (gear with puzzle piece, or **Settings** → **Extensions**).
+5. Choose **+ Import Extension** (or the search box that accepts a URL).
+6. Paste one of these URLs and confirm:
+
+   **This repository (recommended for v2.0.25+):**
+
+   ```
+   https://github.com/RBilsland/pxt-bluetooth-midi
+   ```
+
+   **Microsoft upstream:**
+
+   ```
+   https://github.com/microsoft/pxt-bluetooth-midi
+   ```
+
+   You can paste the URL with or without `.git` at the end. MakeCode fetches the extension from the default branch (usually `master`).
+
+7. Wait for the build to finish. The **MIDI** category should appear in the blocks menu, and **Bluetooth** blocks remain available from the built-in Bluetooth package.
+8. Open **Project Settings** → **Bluetooth** → choose **No Pairing Required** (recommended for macOS MIDI Studio) or **Just Works** if you prefer encrypted pairing.
+9. Click **Download** to build a `.hex` and flash it to the @boardname@.
+
+**Updating after changes on GitHub:** remove the extension (**Extensions** → click the extension → remove), then import the same URL again, or refresh the page and re-import. Download a new `.hex` after every firmware change.
+
+**If import fails:** check the URL, your network, and that the repo is public. For a specific version, you can append `#tag:v2.0.25` to the URL (for example `https://github.com/RBilsland/pxt-bluetooth-midi#tag:v2.0.25`) if that release exists on GitHub.
+
 ## Usage
 
 This package allows the @boardname@ to act as a MIDI peripherical, like a piano. It requires to connect to a BLE MIDI device to receive the commands and play them.
